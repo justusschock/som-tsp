@@ -1,18 +1,27 @@
 from sys import argv
 
 import numpy as np
-
+from tqdm import tqdm
 from io_helper import read_tsp, normalize
 from neuron import generate_network, get_neighborhood, get_route
 from distance import select_closest, euclidean_distance, route_distance
 from plot import plot_network, plot_route
+from kaggle_converter import kaggle_csv_to_tps
+
+import pickle
 
 def main():
     if len(argv) != 2:
         print("Correct use: python src/main.py <filename>.tsp")
         return -1
 
-    problem = read_tsp(argv[1])
+    if argv[1].endswith(".tsp"):
+        tsp_file = argv[1]
+    else:
+        kaggle_csv_to_tps(argv[1], argv[1].rsplit(".", 1)[0] + ".tsp", "Kaggle Cities")
+        tsp_file = argv[1].rsplit(".", 1)[0] + ".tsp"
+
+    problem = read_tsp(tsp_file)
 
     route = som(problem, 100000)
 
@@ -21,7 +30,9 @@ def main():
     distance = route_distance(problem)
 
     print('Route found of length {}'.format(distance))
-
+    print(route)
+    with(open(argv[1].rsplit(".", 1)[0] + "_route.pkl")) as f:
+        pickle.dump(route, f)
 
 def som(problem, iterations, learning_rate=0.8):
     """Solve the TSP using a Self-Organizing Map."""
@@ -38,9 +49,8 @@ def som(problem, iterations, learning_rate=0.8):
     network = generate_network(n)
     print('Network of {} neurons created. Starting the iterations:'.format(n))
 
-    for i in range(iterations):
-        if not i % 100:
-            print('\t> Iteration {}/{}'.format(i, iterations), end="\r")
+    for i in tqdm(range(iterations)):
+
         # Choose a random city
         city = cities.sample(1)[['x', 'y']].values
         winner_idx = select_closest(network, city)
@@ -53,8 +63,8 @@ def som(problem, iterations, learning_rate=0.8):
         n = n * 0.9997
 
         # Check for plotting interval
-        if not i % 1000:
-            plot_network(cities, network, name='diagrams/{:05d}.png'.format(i))
+        # if not i % 1000:
+        #     plot_network(cities, network, name='diagrams/{:05d}.png'.format(i))
 
         # Check if any parameter has completely decayed.
         if n < 1:
